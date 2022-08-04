@@ -1,0 +1,76 @@
+Description:  Create Transit Gateway
+Parameters:
+  TransitGatewayId:
+    Type: String
+  VPC1: 
+    Type: String
+  VPC2: 
+    Type: String
+  VPC3: 
+    Type: String
+  VPC4: 
+    Type: String
+  VPC1PrivateSubnet1: 
+    Type: String
+  VPC1PrivateSubnet2: 
+    Type: String
+  VPC2PrivateSubnet1: 
+    Type: String
+  VPC2PrivateSubnet2: 
+    Type: String
+  VPC3PrivateSubnet1: 
+    Type: String
+  VPC3PrivateSubnet2: 
+    Type: String
+  VPC4PrivateSubnet1: 
+    Type: String
+  VPC4PrivateSubnet2: 
+    Type: String
+
+Resources:
+
+  # Attachment on 4 VPC private subnet
+  Region1TransitGatewayAttachment1:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: 
+      VpcId: !Ref VPC1
+      TransitGatewayId: !Ref TransitGatewayId
+      SubnetIds: 
+        - !Ref VPC1PrivateSubnet1
+        - !Ref VPC1PrivateSubnet2
+      Tags: 
+        - Key: Name
+          Value: SharedVPC-Private
+  Region1TransitGatewayAttachment2:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: 
+      VpcId: !Ref VPC2
+      TransitGatewayId: !Ref TransitGatewayId
+      SubnetIds: 
+        - !Ref VPC2PrivateSubnet1
+        - !Ref VPC2PrivateSubnet2
+      Tags: 
+        - Key: Name
+          Value: VPC2
+  Region1TransitGatewayAttachment3:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: 
+      VpcId: !Ref VPC3
+      TransitGatewayId: !Ref TransitGatewayId
+      SubnetIds: 
+        - !Ref VPC3PrivateSubnet1
+        - !Ref VPC3PrivateSubnet2
+      Tags: 
+        - Key: Name
+          Value: VPC3
+  Region1TransitGatewayAttachment4:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties: 
+      VpcId: !Ref VPC4
+      TransitGatewayId: !Ref TransitGatewayId
+      SubnetIds: 
+        - !Ref VPC4PrivateSubnet1
+        - !Ref VPC4PrivateSubnet2
+      Tags: 
+        - Key: Name
+          Value: VPC4

@@ -1,0 +1,311 @@
+Description:  This template for Application VPC - VPC4
+
+Parameters:
+  EC2KEY:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  ApplicationServerInstanceType:
+    Description: Choose instance type for application server in private subnet 
+    Type: String
+    Default: t4g.micro
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+      - c4g.medium
+      - c6g.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+  JumpServerCIDR:  # Jump Server CIDR in Shared VPC 
+    Description: Please enter the JumpServer CIDR in Shared VPC
+    Type: String
+    Default: 10.1.0.0/16
+  Arm64AmiId:
+    Type: String
+    Default: ami-0d7c3e5665c6b4dbe
+ 
+  # Define VPC4
+  VPC4CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.4.0.0/16
+  VPC4PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.4.1.0/24
+  VPC4PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.4.2.0/24
+  VPC4PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.4.101.0/24
+  VPC4PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.4.102.0/24
+
+Resources:
+  # VPC and IGW
+  VPC4:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPC4CIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: VPC4
+  VPC4InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: VPC4
+  VPC4InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn: VPC4InternetGateway
+    Properties:
+      InternetGatewayId: !Ref VPC4InternetGateway
+      VpcId: !Ref VPC4
+  VPC4EIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: VPC4NATGateway1
+  VPC4EIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: VPC4NATGateway2
+
+  # 4 subnets
+  VPC4PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC4
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref VPC4PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: VPC4Public1
+  VPC4PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC4
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref VPC4PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: VPC4Public2
+  VPC4PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC4
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref VPC4PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: VPC4Private1
+  VPC4PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC4
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref VPC4PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: VPC4Private2
+
+  # NAT Gateway
+  VPC4NATGateway1:
+    DependsOn: VPC4PublicSubnet1
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt VPC4EIP1.AllocationId
+      SubnetId: !Ref VPC4PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: VPC4NATGateway1
+  VPC4NATGateway2:
+    DependsOn: VPC4PublicSubnet2
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt VPC4EIP2.AllocationId
+      SubnetId: !Ref VPC4PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: VPC4NATGateway2
+
+  # Public Route table
+  # AZ1
+  VPC4PublicRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC4
+      Tags:
+        - Key: Name
+          Value: VPC4Public1
+  VPC4PublicRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: VPC4InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref VPC4PublicRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref VPC4InternetGateway
+  VPC4PublicSubnet1RouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC4PublicRouteTable1
+      SubnetId: !Ref VPC4PublicSubnet1
+  # AZ2
+  VPC4PublicRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC4
+      Tags:
+        - Key: Name
+          Value: VPC4Public2
+  VPC4PublicRoute2:
+    Type: AWS::EC2::Route
+    DependsOn: VPC4InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref VPC4PublicRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref VPC4InternetGateway
+  VPC4PublicSubnet1RouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC4PublicRouteTable2
+      SubnetId: !Ref VPC4PublicSubnet2
+
+  # Private Route table
+  # AZ1
+  VPC4PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC4
+      Tags:
+        - Key: Name
+          Value: VPC4Private1
+  VPC4PrivateRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: VPC4NATGateway1
+    Properties:
+      RouteTableId: !Ref VPC4PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref VPC4NATGateway1
+  VPC4PrivateSubnet1RouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC4PrivateRouteTable1
+      SubnetId: !Ref VPC4PrivateSubnet1
+  # AZ2
+  VPC4PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC4
+      Tags:
+        - Key: Name
+          Value: VPC4Private2
+  VPC4PrivateRoute2:
+    Type: AWS::EC2::Route
+    DependsOn: VPC4NATGateway2
+    Properties:
+      RouteTableId: !Ref VPC4PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref VPC4NATGateway2
+  VPC4PrivateSubnet1RouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC4PrivateRouteTable2
+      SubnetId: !Ref VPC4PrivateSubnet2
+
+  # Security Group
+  VPC4SecurtiyGroup1:
+    Type: 'AWS::EC2::SecurityGroup'
+    DependsOn: VPC4PublicSubnet1
+    Properties:
+      GroupName: VPC4 Application Server
+      GroupDescription: VPC4 Application Server
+      VpcId: !Ref VPC4
+      SecurityGroupIngress:
+        - IpProtocol: tcp # Allow SSH from JumpServer in Shared VPC
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref JumpServerCIDR
+          Description: Allow SSH from JumpServer in Shared VPC
+        - IpProtocol: tcp # allow Web Service from anywhere
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+          Description: Allow Web Service from Shared VPC
+        - IpProtocol: icmp # allow ping from anywhere
+          FromPort: '8'
+          ToPort: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: Allow Ping from anywhere
+      Tags:
+        - Key: Name
+          Value: VPC04 Application Server
+  # Application Server
+  VPC4VM1:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: VPC4SecurtiyGroup1
+    Properties:
+      KeyName: !Ref EC2KEY
+      ImageId: !Ref Arm64AmiId
+      InstanceType: !Ref ApplicationServerInstanceType
+      IamInstanceProfile: !Ref SSMIAMprofile
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      SubnetId: !Ref VPC4PrivateSubnet1
+      Monitoring: true
+      BlockDeviceMappings: # Use gp3 as root disk @2021-01-31
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 10
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref VPC4SecurtiyGroup1
+      Tags:
+        - Key: Name
+          Value: VPC4 Application Server
+      UserData: !Base64 
+        'Fn::Join':
+          - ''
+          - - |
+              #! /bin/bash
+            - |
+              yum update -y
+            - |+
+
+Outputs:
+    VPC4:
+      Value: !Ref VPC4
+    VPC4PublicSubnet1:
+      Value: !Ref VPC4PublicSubnet1
+    VPC4PublicSubnet2:
+      Value: !Ref VPC4PublicSubnet2
+    VPC4PrivateSubnet1:
+      Value: !Ref VPC4PrivateSubnet1
+    VPC4PrivateSubnet2:
+      Value: !Ref VPC4PrivateSubnet2
+    VPC4PublicRouteTable1:
+      Value: !Ref VPC4PublicRouteTable1
+    VPC4PublicRouteTable2:
+      Value: !Ref VPC4PublicRouteTable2
+    VPC4PrivateRouteTable1:
+      Value: !Ref VPC4PrivateRouteTable1
+    VPC4PrivateRouteTable2:
+      Value: !Ref VPC4PrivateRouteTable2
+    VPC4PrivateIP:
+      Value: !GetAtt VPC4VM1.PrivateIp

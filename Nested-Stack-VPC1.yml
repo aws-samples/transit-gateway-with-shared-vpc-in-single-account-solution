@@ -1,0 +1,575 @@
+Description:  This template for Shared VPC
+
+Parameters:
+  EC2KEY:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  VPNGatewayInstanceType:
+    Description: Choose instance type for VPN Gateway 
+    Type: String
+    Default: t4g.micro
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+      - c4g.medium
+      - c6g.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+  JumpServerInstanceType:
+    Description: Choose instance type for jumpserver
+    Type: String
+    Default: t4g.micro
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+      - c4g.medium
+      - c6g.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+  ApplicationServerInstanceType:
+    Description: Choose instance type for application server
+    Type: String
+    Default: t4g.micro
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+      - c4g.medium
+      - c6g.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+  Arm64AmiId:
+    Type: String
+    Default: ami-0d7c3e5665c6b4dbe
+
+  # JumpServer allow list
+  JumpServerAllowList:
+    Description: Please enter the CIDR that allows to connect to JumpServer
+    Type: String
+    Default: 52.82.200.0/24
+
+  # Define SharedVPC
+  VPC1CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.1.0.0/16
+  VPC1PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.1.0/24
+  VPC1PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.2.0/24
+  VPC1PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.101.0/24
+  VPC1PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.102.0/24
+
+  # Application VPC CIDR
+  VPC2CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.2.0.0/16
+  VPC3CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.3.0.0/16
+  VPC4CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.4.0.0/16
+
+Resources:
+  # JumpServer IAM Profile for Session Manager(SSM)
+  SSMRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com.cn
+            Action: 
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws-cn:iam::aws:policy/AmazonSSMManagedInstanceCore'
+      Path: /
+      RoleName: EC2SessionManager
+      Tags:
+        - Key: Name
+          Value: EC2-Session-Manager
+  SSMIAMprofile:
+    Type: "AWS::IAM::InstanceProfile"
+    DependsOn: SSMRole
+    Properties:
+      Path: "/"
+      Roles:
+        -
+          Ref: "SSMRole"
+
+  # VPC and IGW
+  VPC1:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPC1CIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: SharedVPC
+  VPC1InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: SharedVPC
+  VPC1InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    DependsOn: VPC1InternetGateway
+    Properties:
+      InternetGatewayId: !Ref VPC1InternetGateway
+      VpcId: !Ref VPC1
+  VPC1EIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: SharedVPC-AZ1-NAT-Gateway
+  VPC1EIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: SharedVPC-AZ2-NAT-Gateway
+
+  # EIP for JumpServer and VPN Gateway
+  VPC1EIP3:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: SharedVPC-JumpServer
+  VPC1EIP4:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: SharedVPC-VPN-Gateway
+
+  # 4 subnets
+  VPC1PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref VPC1PublicSubnet1CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: SharedVPC-Public1
+  VPC1PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref VPC1PublicSubnet2CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: SharedVPC-Public2
+  VPC1PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      CidrBlock: !Ref VPC1PrivateSubnet1CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: SharedVPC-Private1
+  VPC1PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC1
+      AvailabilityZone: !Select [ 1, !GetAZs  '' ]
+      CidrBlock: !Ref VPC1PrivateSubnet2CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: SharedVPC-Private2
+
+  # NAT Gateway
+  VPC1NATGateway1:
+    DependsOn: VPC1PublicSubnet1
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt VPC1EIP1.AllocationId
+      SubnetId: !Ref VPC1PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: SharedVPC-NAT-Gateway1
+  VPC1NATGateway2:
+    DependsOn: VPC1PublicSubnet2
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt VPC1EIP2.AllocationId
+      SubnetId: !Ref VPC1PublicSubnet2
+      Tags:
+        - Key: Name
+          Value: SharedVPC-NAT-Gateway2
+
+  # Public Route table
+  # AZ1
+  VPC1PublicRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: SharedVPC-Public1
+  VPC1PublicRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: VPC1InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref VPC1PublicRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref VPC1InternetGateway
+  VPC1PublicSubnet1RouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC1PublicRouteTable1
+      SubnetId: !Ref VPC1PublicSubnet1
+  # AZ2
+  VPC1PublicRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: SharedVPC-Public2
+  VPC1PublicRoute2:
+    Type: AWS::EC2::Route
+    DependsOn: VPC1InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref VPC1PublicRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref VPC1InternetGateway
+  VPC1PublicSubnet2RouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC1PublicRouteTable2
+      SubnetId: !Ref VPC1PublicSubnet2
+
+  # Private Route table
+  # AZ1 
+  VPC1PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: SharedVPC-Private1
+  VPC1PrivateRoute1:
+    Type: AWS::EC2::Route
+    DependsOn: VPC1NATGateway1
+    Properties:
+      RouteTableId: !Ref VPC1PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref VPC1NATGateway1
+  VPC1PrivateSubnet1RouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC1PrivateRouteTable1
+      SubnetId: !Ref VPC1PrivateSubnet1
+  # AZ2
+  VPC1PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC1
+      Tags:
+        - Key: Name
+          Value: SharedVPC-Private2
+  VPC1PrivateRoute2:
+    Type: AWS::EC2::Route
+    DependsOn: VPC1NATGateway2
+    Properties:
+      RouteTableId: !Ref VPC1PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref VPC1NATGateway2
+  VPC1PrivateSubnet1RouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      RouteTableId: !Ref VPC1PrivateRouteTable2
+      SubnetId: !Ref VPC1PrivateSubnet2
+
+  # Security Group for VM2 - Jump Server
+  # 首先生成堡垒机的SG ID，然后后续几个Security Group才可以引用堡垒机的Security Group ID
+  VPC1SecurtiyGroup2:
+    Type: 'AWS::EC2::SecurityGroup'
+    DependsOn: VPC1PublicSubnet1
+    Properties:
+      GroupName: SharedVPC Jump Server
+      GroupDescription: SharedVPC Jump Server
+      VpcId: !Ref VPC1
+      SecurityGroupIngress:
+        - IpProtocol: tcp # Allow SSH from JumpServer SecurityGroupID in VPC1
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref JumpServerAllowList
+          Description: Allow SSH from MyIP, please update it after creation
+      Tags:
+        - Key: Name
+          Value: SharedVPC JumpServer
+  # Security Group for VM1 - application
+  # 引用了堡垒机的Security Group的ID
+  VPC1SecurtiyGroup1:
+    Type: 'AWS::EC2::SecurityGroup'
+    DependsOn: VPC1SecurtiyGroup2
+    Properties:
+      GroupName: SharedVPC Application Server
+      GroupDescription: SharedVPC Application Server
+      VpcId: !Ref VPC1
+      SecurityGroupIngress:
+        - IpProtocol: tcp # Allow SSH from JumpServer SecurityGroupID in SharedVPC
+          FromPort: '22'
+          ToPort: '22'
+          SourceSecurityGroupId: !Ref VPC1SecurtiyGroup2
+          Description: Allow SSH from JumpServer SecurityGroupID in VPC1
+        - IpProtocol: tcp # allow Web Service from anywhere
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: 0.0.0.0/0
+          Description: Allow Web Service from Shared VPC
+        - IpProtocol: icmp # allow ping from anywhere
+          FromPort: '8'
+          ToPort: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: Allow Ping from anywhere
+      Tags:
+        - Key: Name
+          Value: SharedVPC Application Server
+  # VPN Gateway
+  # 引用了堡垒机的Security Group的ID
+  VPC1SecurtiyGroup3:
+    Type: 'AWS::EC2::SecurityGroup'
+    DependsOn: VPC1SecurtiyGroup2
+    Properties:
+      GroupName: SharedVPC VPN Gateway
+      GroupDescription: SharedVPC VPN Gateway
+      VpcId: !Ref VPC1
+      SecurityGroupIngress:
+        - IpProtocol: udp
+          FromPort: '500'
+          ToPort: '500'
+          CidrIp: 0.0.0.0/0
+          Description: UDP 500 Port for Site-to-Site VPN
+        - IpProtocol: udp
+          FromPort: '4500'
+          ToPort: '4500'
+          CidrIp: 0.0.0.0/0
+          Description: UDP 4500 Port for Site-to-Site VPN
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          SourceSecurityGroupId: !Ref VPC1SecurtiyGroup2
+          Description: Allow SSH from JumpServer SecurityGroupID in VPC1
+        - IpProtocol: 50
+          CidrIp: 0.0.0.0/0
+          Description: Allow ESP Protocol for IPSEC VPN
+        - IpProtocol: icmp
+          FromPort: '8'
+          ToPort: '-1'
+          CidrIp: 0.0.0.0/0
+          Description: Allow ping from anywhere
+        # 以下几行是作为转发必须具有的放行流量
+        - IpProtocol: -1 
+          CidrIp: !Ref VPC1CIDR # 允许Shared VPC网段过来的所有流量
+          Description: Allow SharedVPC traffic to be forwarded to remote site
+        - IpProtocol: -1
+          CidrIp: !Ref VPC2CIDR # 允许Shared VPC网段过来的所有流量
+          Description: Allow VPC2 traffic to be forwarded to remote site
+        - IpProtocol: -1
+          CidrIp: !Ref VPC3CIDR # 允许Shared VPC网段过来的所有流量
+          Description: Allow VPC3 traffic to be forwarded to remote site
+        - IpProtocol: -1
+          CidrIp: !Ref VPC4CIDR # 允许Shared VPC网段过来的所有流量
+          Description: Allow VPC4 traffic to be forwarded to remote site
+      Tags:
+        - Key: Name
+          Value: SharedVPC VPN Gateway
+
+  # Application Server
+  VPC1VM1:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: !Ref EC2KEY
+      ImageId: !Ref Arm64AmiId
+      InstanceType: !Ref ApplicationServerInstanceType
+      IamInstanceProfile: !Ref SSMIAMprofile
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      SubnetId: !Ref VPC1PrivateSubnet1
+      Monitoring: true
+      BlockDeviceMappings: # Use gp3 as root disk @2021-01-31
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 10
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref VPC1SecurtiyGroup1
+      Tags:
+        - Key: Name
+          Value: SharedVPC Application Server
+      UserData: !Base64 
+        'Fn::Join':
+          - ''
+          - - |
+              #! /bin/bash
+            - |
+              yum update -y
+            - |+
+
+  # Jump Server
+  VPC1VM2:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: !Ref EC2KEY
+      ImageId: !Ref Arm64AmiId
+      InstanceType: !Ref JumpServerInstanceType
+      IamInstanceProfile: !Ref SSMIAMprofile
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      SubnetId: !Ref VPC1PublicSubnet1
+      Monitoring: true
+      BlockDeviceMappings: # Use gp3 as root disk @2021-01-31
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp3
+            VolumeSize: 10
+            DeleteOnTermination: true
+      SecurityGroupIds:
+        - !Ref VPC1SecurtiyGroup2
+      Tags:
+        - Key: Name
+          Value: SharedVPC JumpServer
+      UserData: !Base64 
+        'Fn::Join':
+          - ''
+          - - |
+              #! /bin/bash
+            - |
+              yum update -y
+            - |+
+
+  
+  # VPN Gateway
+  VPC1VM3:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: !Ref EC2KEY
+      ImageId: !Ref Arm64AmiId
+      InstanceType: !Ref VPNGatewayInstanceType
+      AvailabilityZone: !Select [ 0, !GetAZs  '' ]
+      Tags:
+        - Key: Name
+          Value: SharedVPC VPN Gateway
+      SubnetId: !Ref VPC1PublicSubnet1
+      SourceDestCheck: false
+      Monitoring: true
+      SecurityGroupIds:
+        - !Ref VPC1SecurtiyGroup3
+      UserData: !Base64 
+        'Fn::Join':
+          - ''
+          - - |
+              #! /bin/bash
+            - |
+              echo "net.ipv4.ip_forward = 1" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.all.accept_redirects = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.all.send_redirects = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.default.send_redirects = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.eth0.send_redirects = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.default.accept_redirects = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.eth0.accept_redirects = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.all.rp_filter = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.default.rp_filter = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.eth0.rp_filter = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.lo.rp_filter = 0" >> /etc/sysctl.conf
+            - |
+              echo "net.ipv4.conf.ip_vti0.rp_filter = 0" >> /etc/sysctl.conf
+            - |
+              sysctl -p
+            - |
+              echo "iptables -t mangle -A FORWARD -o eth0 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1360" >> /etc/rc.d/rc.local
+            - |
+              iptables -t mangle -A FORWARD -o eth0 -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --set-mss 1360
+            - |
+              chmod +x /etc/rc.d/rc.local
+            - |
+              yum update -y
+            - |+
+
+  # JumpServer EIP
+  VPC1EIP3assignment:
+    Type: AWS::EC2::EIPAssociation
+    DependsOn: VPC1VM2
+    Properties:
+      InstanceId: !Ref VPC1VM2
+      EIP: !Ref VPC1EIP3
+  # VPN Gateway
+  VPC1EIP4assignment:
+    Type: AWS::EC2::EIPAssociation
+    DependsOn: VPC1VM3
+    Properties:
+      InstanceId: !Ref VPC1VM3
+      EIP: !Ref VPC1EIP4
+
+Outputs:
+    VPC1:
+      Value: !Ref VPC1
+    VPC1PublicSubnet1:
+      Value: !Ref VPC1PublicSubnet1
+    VPC1PublicSubnet2:
+      Value: !Ref VPC1PublicSubnet2
+    VPC1PrivateSubnet1:
+      Value: !Ref VPC1PrivateSubnet1
+    VPC1PrivateSubnet2:
+      Value: !Ref VPC1PrivateSubnet2
+    VPC1PublicRouteTable1:
+      Value: !Ref VPC1PublicRouteTable1
+    VPC1PublicRouteTable2:
+      Value: !Ref VPC1PublicRouteTable2
+    VPC1PrivateRouteTable1:
+      Value: !Ref VPC1PrivateRouteTable1
+    VPC1PrivateRouteTable2:
+      Value: !Ref VPC1PrivateRouteTable2
+    # Application Server
+    VPC1PrivateIP: 
+      Value: !GetAtt VPC1VM1.PrivateIp
+    # Jump Server
+    VPC1JumpServerEIP: # 堡垒机公网IP
+      Value: !Ref VPC1EIP3
+    VPC1JumpServerPrivateIP: # 堡垒机 Private IP
+      Value: !GetAtt VPC1VM2.PrivateIp
+    VPC1JumpServerSecurityGroup:
+      Value: !Ref VPC1SecurtiyGroup2
+    VPC1VPNGatewayEIP: # VPN网关公网IP
+      Value: !Ref VPC1EIP4
+    VPC1VPNGatewayPrivateIP: # VPN Gateway Private IP
+      Value: !GetAtt VPC1VM3.PrivateIp

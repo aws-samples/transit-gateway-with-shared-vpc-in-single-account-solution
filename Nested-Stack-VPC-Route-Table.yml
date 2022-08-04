@@ -1,0 +1,160 @@
+Description:  Add Route into Route Table for Transit Gateway
+
+Parameters:
+  # TGW ID
+  TransitGatewayId:
+    Type: String
+  # Shared VPC Subnet ID
+  VPC1PublicRouteTable1: 
+    Type: String
+  VPC1PublicRouteTable2: 
+    Type: String
+  VPC1PrivateRouteTable1: 
+    Type: String
+  VPC1PrivateRouteTable2: 
+    Type: String
+  # Application VPC Subnet ID
+  VPC2PrivateRouteTable1: 
+    Type: String
+  VPC2PrivateRouteTable2: 
+    Type: String
+  VPC3PrivateRouteTable1: 
+    Type: String
+  VPC3PrivateRouteTable2: 
+    Type: String
+  VPC4PrivateRouteTable1: 
+    Type: String
+  VPC4PrivateRouteTable2: 
+    Type: String
+  # VPC CIDR
+  VPC1CIDR:
+    Type: String
+  VPC2CIDR:
+    Type: String
+  VPC3CIDR:
+    Type: String
+  VPC4CIDR:
+    Type: String
+
+Resources:
+  # Shared VPC - Private Route table
+  # AZ1
+  VPC1TGWPublicRoute21:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PublicRouteTable1
+       DestinationCidrBlock: !Ref VPC2CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC1TGWPublicRoute31:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PublicRouteTable1
+       DestinationCidrBlock: !Ref VPC3CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC1TGWPublicRoute41:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PublicRouteTable1
+       DestinationCidrBlock: !Ref VPC4CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  # AZ2
+  VPC1TGWPublicRoute22:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PublicRouteTable2
+       DestinationCidrBlock: !Ref VPC2CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC1TGWPublicRoute32:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PublicRouteTable2
+       DestinationCidrBlock: !Ref VPC3CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC1TGWPublicRoute42:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PublicRouteTable2
+       DestinationCidrBlock: !Ref VPC4CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+
+  # Shared VPC - Private Route table
+  # AZ1
+  VPC1TGWPrivateRoute21:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PrivateRouteTable1
+       DestinationCidrBlock: !Ref VPC2CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC1TGWPrivateRoute31:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PrivateRouteTable1
+       DestinationCidrBlock: !Ref VPC3CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC1TGWPrivateRoute41:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PrivateRouteTable1
+       DestinationCidrBlock: !Ref VPC4CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  # AZ2
+  VPC1TGWPrivateRoute22:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PrivateRouteTable2
+       DestinationCidrBlock: !Ref VPC2CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC1TGWPrivateRoute32:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PrivateRouteTable2
+       DestinationCidrBlock: !Ref VPC3CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC1TGWPrivateRoute42:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC1PrivateRouteTable2
+       DestinationCidrBlock: !Ref VPC4CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+
+  # VPC2 - Private Route table
+  VPC2TGWRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC2PrivateRouteTable1
+       DestinationCidrBlock: !Ref VPC1CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC2TGWRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC2PrivateRouteTable2
+       DestinationCidrBlock: !Ref VPC1CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  
+  # VPC3 - Private Route table
+  VPC3TGWRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC3PrivateRouteTable1
+       DestinationCidrBlock: !Ref VPC1CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC3TGWRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC3PrivateRouteTable2
+       DestinationCidrBlock: !Ref VPC1CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+
+  # VPC4 - Private Route table
+  VPC4TGWRoute1:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC4PrivateRouteTable1
+       DestinationCidrBlock: !Ref VPC1CIDR
+       TransitGatewayId: !Ref TransitGatewayId
+  VPC4TGWRoute2:
+    Type: AWS::EC2::Route
+    Properties:
+       RouteTableId: !Ref VPC4PrivateRouteTable2
+       DestinationCidrBlock: !Ref VPC1CIDR
+       TransitGatewayId: !Ref TransitGatewayId

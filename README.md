@@ -1,11 +1,11 @@
-## My Project
+## Transit gateway with shared VPC in single account quickstart solution for AWS China region
 
-TODO: Fill this README out!
+## How to deploy
 
-Be sure to:
-
-* Change the title in this README
-* Edit your repository description on GitHub
+* Clone this repository to get all cloudformation in a S3 bucket in your AWS account
+* Make main template to public on S3, and get public access URL
+* Use this URL in CloudFormation, and submit it
+* Check CloudFormation output to get login information
 
 ## Security
 

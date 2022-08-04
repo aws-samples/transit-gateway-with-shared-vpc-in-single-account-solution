@@ -1,0 +1,339 @@
+Description: Amazon Transit Gateway with Shared VPC in Single Account Quickstart
+
+Parameters:
+  # Shared Parameters for all VPCs
+  EC2KEY:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instances
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  VPNGatewayInstanceType:
+    Description: Choose instance type for VPN Gateway 
+    Type: String
+    Default: t4g.micro
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+      - c4g.medium
+      - c6g.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+  JumpServerInstanceType:
+    Description: Choose instance type for jumpserver
+    Type: String
+    Default: t4g.micro
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+      - c4g.medium
+      - c6g.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+  ApplicationServerInstanceType:
+    Description: Choose instance type for application server
+    Type: String
+    Default: t4g.micro
+    AllowedValues:
+      - t4g.micro
+      - t4g.small
+      - c4g.medium
+      - c6g.medium
+    ConstraintDescription: must be a valid EC2 instance type.
+  Arm64AmiId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Description: This SSM parameter will have latest AMI image, just keep default and DO NOT modify it.
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-arm64-gp2'
+
+  # JumpServer allow list
+  JumpServerAllowList:
+    Description: Please enter the CIDR that allows to connect to JumpServer
+    Type: String
+    Default: 54.222.61.0/24
+
+  # Define SharedVPC
+  VPC1CIDR:
+    Description: VPC1 is used for Shared VPC, VPC 2˜4 are application VPCs.
+    Type: String
+    Default: 10.1.0.0/16
+  VPC1PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.1.0/24
+  VPC1PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.2.0/24
+  VPC1PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.1.101.0/24
+  VPC1PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.1.102.0/24
+
+  # Define VPC2
+  VPC2CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.2.0.0/16
+  VPC2PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.2.1.0/24
+  VPC2PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.2.2.0/24
+  VPC2PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.2.101.0/24
+  VPC2PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.2.102.0/24
+
+  # Define VPC3
+  VPC3CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.3.0.0/16
+  VPC3PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.3.1.0/24
+  VPC3PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.3.2.0/24
+  VPC3PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.3.101.0/24
+  VPC3PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.3.102.0/24
+
+  # Define VPC4
+  VPC4CIDR:
+    Description: Please enter the IP range (CIDR notation) for this VPC
+    Type: String
+    Default: 10.4.0.0/16
+  VPC4PublicSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the first Availability Zone
+    Type: String
+    Default: 10.4.1.0/24
+  VPC4PublicSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the public subnet in the second Availability Zone
+    Type: String
+    Default: 10.4.2.0/24
+  VPC4PrivateSubnet1CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the first Availability Zone
+    Type: String
+    Default: 10.4.101.0/24
+  VPC4PrivateSubnet2CIDR:
+    Description: Please enter the IP range (CIDR notation) for the private subnet in the second Availability Zone
+    Type: String
+    Default: 10.4.102.0/24
+
+Resources:
+    # Create VGW
+  Region1TransitGateway:
+    Type: "AWS::EC2::TransitGateway"
+    Properties:
+      #AmazonSideAsn: 65000
+      Description: "TGW SharedVPC"
+      #AutoAcceptSharedAttachments: "disable"
+      #DefaultRouteTableAssociation: "enable"
+      #DnsSupport: "enable"
+      #VpnEcmpSupport: "enable"
+      Tags:
+        - Key: Name
+          Value: "TGW-SharedVPC"
+
+  # Shared VPC
+  VPC01Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: Region1TransitGateway
+    Properties:
+      Parameters:
+        EC2KEY: !Ref EC2KEY
+        VPNGatewayInstanceType: !Ref VPNGatewayInstanceType
+        JumpServerInstanceType: !Ref JumpServerInstanceType
+        ApplicationServerInstanceType: !Ref ApplicationServerInstanceType
+        Arm64AmiId: !Ref Arm64AmiId
+        JumpServerAllowList: !Ref JumpServerAllowList
+        VPC1CIDR: !Ref VPC1CIDR
+        VPC1PublicSubnet1CIDR: !Ref VPC1PublicSubnet1CIDR
+        VPC1PublicSubnet2CIDR: !Ref VPC1PublicSubnet2CIDR
+        VPC1PrivateSubnet1CIDR: !Ref VPC1PrivateSubnet1CIDR
+        VPC1PrivateSubnet2CIDR: !Ref VPC1PrivateSubnet2CIDR
+        VPC2CIDR: !Ref VPC2CIDR
+        VPC3CIDR: !Ref VPC3CIDR
+        VPC4CIDR: !Ref VPC4CIDR
+      TemplateURL: https://myworkshop-lxy.s3.cn-north-1.amazonaws.com.cn/TGW-SharedVPC/V2.3/Nested-Stack-VPC1.yml
+      TimeoutInMinutes: 9
+      Tags:
+        - Key: Name
+          Value: SharedVPC
+
+  # VPC2
+  VPC02Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VPC01Stack
+    Properties:
+      Parameters:
+        EC2KEY: !Ref EC2KEY
+        ApplicationServerInstanceType: !Ref ApplicationServerInstanceType
+        Arm64AmiId: !Ref Arm64AmiId
+        VPC2CIDR: !Ref VPC2CIDR
+        VPC2PublicSubnet1CIDR: !Ref VPC2PublicSubnet1CIDR
+        VPC2PublicSubnet2CIDR: !Ref VPC2PublicSubnet2CIDR
+        VPC2PrivateSubnet1CIDR: !Ref VPC2PrivateSubnet1CIDR
+        VPC2PrivateSubnet2CIDR: !Ref VPC2PrivateSubnet2CIDR
+        # 获取Shared VPC的JumpServer的内网IP
+        JumpServerCIDR: !Join
+          - ''
+          - - !GetAtt VPC01Stack.Outputs.VPC1JumpServerPrivateIP
+            - "/32"
+      TemplateURL: https://myworkshop-lxy.s3.cn-north-1.amazonaws.com.cn/TGW-SharedVPC/V2.3/Nested-Stack-VPC2.yml
+      TimeoutInMinutes: 5
+      Tags:
+        - Key: Name
+          Value: VPC02
+
+  # VPC3
+  VPC03Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VPC01Stack
+    Properties:
+      Parameters:
+        EC2KEY: !Ref EC2KEY
+        ApplicationServerInstanceType: !Ref ApplicationServerInstanceType
+        Arm64AmiId: !Ref Arm64AmiId
+        VPC3CIDR: !Ref VPC3CIDR
+        VPC3PublicSubnet1CIDR: !Ref VPC3PublicSubnet1CIDR
+        VPC3PublicSubnet2CIDR: !Ref VPC3PublicSubnet2CIDR
+        VPC3PrivateSubnet1CIDR: !Ref VPC3PrivateSubnet1CIDR
+        VPC3PrivateSubnet2CIDR: !Ref VPC3PrivateSubnet2CIDR
+        # 获取Shared VPC的JumpServer的内网IP
+        JumpServerCIDR: !Join
+          - ''
+          - - !GetAtt VPC01Stack.Outputs.VPC1JumpServerPrivateIP
+            - "/32"
+      TemplateURL: https://myworkshop-lxy.s3.cn-north-1.amazonaws.com.cn/TGW-SharedVPC/V2.3/Nested-Stack-VPC3.yml
+      TimeoutInMinutes: 5
+      Tags:
+        - Key: Name
+          Value: VPC03
+
+  # VPC4
+  VPC04Stack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      Parameters:
+        EC2KEY: !Ref EC2KEY
+        ApplicationServerInstanceType: !Ref ApplicationServerInstanceType
+        Arm64AmiId: !Ref Arm64AmiId
+        VPC4CIDR: !Ref VPC4CIDR
+        VPC4PublicSubnet1CIDR: !Ref VPC4PublicSubnet1CIDR
+        VPC4PublicSubnet2CIDR: !Ref VPC4PublicSubnet2CIDR
+        VPC4PrivateSubnet1CIDR: !Ref VPC4PrivateSubnet1CIDR
+        VPC4PrivateSubnet2CIDR: !Ref VPC4PrivateSubnet2CIDR
+        # 获取Shared VPC的JumpServer的内网IP
+        JumpServerCIDR: !Join
+          - ''
+          - - !GetAtt VPC01Stack.Outputs.VPC1JumpServerPrivateIP
+            - "/32"
+      TemplateURL: https://myworkshop-lxy.s3.cn-north-1.amazonaws.com.cn/TGW-SharedVPC/V2.3/Nested-Stack-VPC4.yml
+      TimeoutInMinutes: 5
+      Tags:
+        - Key: Name
+          Value: VPC04
+  
+  # TGW
+  TGW01Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: VPC04Stack
+    Properties:
+      Parameters:
+        TransitGatewayId: !Ref Region1TransitGateway
+        VPC1: !GetAtt VPC01Stack.Outputs.VPC1
+        VPC1PrivateSubnet1: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet1
+        VPC1PrivateSubnet2: !GetAtt VPC01Stack.Outputs.VPC1PrivateSubnet2
+        VPC2: !GetAtt VPC02Stack.Outputs.VPC2
+        VPC2PrivateSubnet1: !GetAtt VPC02Stack.Outputs.VPC2PrivateSubnet1
+        VPC2PrivateSubnet2: !GetAtt VPC02Stack.Outputs.VPC2PrivateSubnet2
+        VPC3: !GetAtt VPC03Stack.Outputs.VPC3
+        VPC3PrivateSubnet1: !GetAtt VPC03Stack.Outputs.VPC3PrivateSubnet1
+        VPC3PrivateSubnet2: !GetAtt VPC03Stack.Outputs.VPC3PrivateSubnet2
+        VPC4: !GetAtt VPC04Stack.Outputs.VPC4
+        VPC4PrivateSubnet1: !GetAtt VPC04Stack.Outputs.VPC4PrivateSubnet1
+        VPC4PrivateSubnet2: !GetAtt VPC04Stack.Outputs.VPC4PrivateSubnet2
+      TemplateURL: https://myworkshop-lxy.s3.cn-north-1.amazonaws.com.cn/TGW-SharedVPC/V2.3/Nested-Stack-Transit-Gateway.yml
+      TimeoutInMinutes: 10
+      Tags:
+        - Key: Name
+          Value: TGW-SharedVPC
+
+  # Add route table to all VPC
+  RouteTable01Stack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: TGW01Stack
+    Properties:
+      Parameters:
+        TransitGatewayId: !Ref Region1TransitGateway
+        VPC1CIDR: !Ref VPC1CIDR
+        VPC2CIDR: !Ref VPC2CIDR
+        VPC3CIDR: !Ref VPC3CIDR
+        VPC4CIDR: !Ref VPC4CIDR
+        # Shared VPC
+        VPC1PublicRouteTable1:  !GetAtt VPC01Stack.Outputs.VPC1PublicRouteTable1
+        VPC1PublicRouteTable2:  !GetAtt VPC01Stack.Outputs.VPC1PublicRouteTable2
+        VPC1PrivateRouteTable1: !GetAtt VPC01Stack.Outputs.VPC1PrivateRouteTable1
+        VPC1PrivateRouteTable2: !GetAtt VPC01Stack.Outputs.VPC1PrivateRouteTable2
+        # Application VPC
+        VPC2PrivateRouteTable1: !GetAtt VPC02Stack.Outputs.VPC2PrivateRouteTable1
+        VPC2PrivateRouteTable2: !GetAtt VPC02Stack.Outputs.VPC2PrivateRouteTable2
+        VPC3PrivateRouteTable1: !GetAtt VPC03Stack.Outputs.VPC3PrivateRouteTable1
+        VPC3PrivateRouteTable2: !GetAtt VPC03Stack.Outputs.VPC3PrivateRouteTable2
+        VPC4PrivateRouteTable1: !GetAtt VPC04Stack.Outputs.VPC4PrivateRouteTable1
+        VPC4PrivateRouteTable2: !GetAtt VPC04Stack.Outputs.VPC4PrivateRouteTable2
+      TemplateURL: https://myworkshop-lxy.s3.cn-north-1.amazonaws.com.cn/TGW-SharedVPC/V2.3/Nested-Stack-VPC-Route-Table.yml
+      TimeoutInMinutes: 6
+      Tags:
+        - Key: Name
+          Value: TGW-SharedVPC-Route
+
+Outputs: 
+    JumpServerPublicIP: # 堡垒机EIP,拼接登录字符串
+      Description: JumpServer EIP in SharedVPC Public Subnet, single entry point for login
+      Value: !Join
+      - ''
+      - - "ssh-add "
+        -  !Ref EC2KEY
+        - ".pem;ssh -A ec2-user@"
+        - !GetAtt VPC01Stack.Outputs.VPC1JumpServerEIP
+    VPNGatewayPublicIP: # VPN网关EIP
+      Description: VPN Gateway EIP in SharedVPC Public Subnet, required by Site-to-Site VPN configuration
+      Value: !GetAtt VPC01Stack.Outputs.VPC1VPNGatewayEIP
+    VPNServerPrivateIP: # VPN网关在Public子网的内网IP
+      Description: VPN Gateway Internal IP, ONLY can be connected from JumpServer
+      Value: !Join
+      - ''
+      - - "ssh ec2-user@"
+        - !GetAtt VPC01Stack.Outputs.VPC1VPNGatewayPrivateIP
+    SharedVPCApplicationServer: # 共享VPC的通用服务EC2内网IP
+      Description: Common Service in SharedVPC Private subnet
+      Value: !GetAtt VPC01Stack.Outputs.VPC1PrivateIP
+    VPC2AppServerPrivateIP:
+      Description: Application Server in VPC2 Private IP
+      Value: !GetAtt VPC02Stack.Outputs.VPC2PrivateIP
+    VPC3AppServerPrivateIP:
+      Description: Application Server in VPC3 Private IP
+      Value: !GetAtt VPC03Stack.Outputs.VPC3PrivateIP
+    VPC4AppServerPrivateIP:
+      Description: Application Server in VPC4 Private IP
+      Value: !GetAtt VPC04Stack.Outputs.VPC4PrivateIP
+    AMIIDforARM64:
+      Description: Latest ARM64 AMI ID used in tempalte
+      Value: !Ref Arm64AmiId
